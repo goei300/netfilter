@@ -25,10 +25,10 @@ void dump2(unsigned char* buf, int size) {
 }
 
 unsigned char* get_http_start_address(unsigned char* buf) {
-    // Extract IP header length from the IHL field (lower 4 bits of first byte)
+    // Calculate ip header length (lower 4its of 1st bytes)
     int ip_header_len = (buf[0] & 0x0F) * 4;
 
-    // Extract TCP header length (data offset) from the 13th byte of TCP header
+    // Calculate tcp header length (lower 4bits of 13th bytes)
     int tcp_header_len = ((buf[ip_header_len + 12] >> 4) & 0x0F) * 4;
     // Calculate HTTP start address
     unsigned char* http_start = buf + ip_header_len + tcp_header_len;
