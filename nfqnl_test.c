@@ -25,10 +25,10 @@ void dump2(unsigned char* buf, int size) {
 }
 
 unsigned char* get_http_start_address(unsigned char* buf) {
-    // Calculate ip header length (lower 4its of 1st bytes)
+    // Calculate ip header length (lower 4its of 1st bytes) & word to byte
     int ip_header_len = (buf[0] & 0x0F) * 4;
 
-    // Calculate tcp header length (lower 4bits of 13th bytes)
+    // Calculate tcp header length (higher 4bits of 13th bytes) BUT it is word. so convert it to byte
     int tcp_header_len = ((buf[ip_header_len + 12] >> 4) & 0x0F) * 4;
     // Calculate HTTP start address
     unsigned char* http_start = buf + ip_header_len + tcp_header_len;
