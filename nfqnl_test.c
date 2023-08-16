@@ -1,14 +1,77 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 #include <netinet/in.h>
 #include <linux/types.h>
 #include <linux/netfilter.h>		/* for NF_ACCEPT */
 #include <errno.h>
-
+#include <stdbool.h>
 #include <libnetfilter_queue/libnetfilter_queue.h>
 
 /* returns packet id */
+
+
+unsigned char* get_http_start_address(unsigned char* buf) {
+    // Extract IP header length from the IHL field (lower 4 bits of first byte)
+    int ip_header_len = (buf[0] & 0x0F) * 4;
+
+    // Extract TCP header length (data offset) from the 13th byte of TCP header
+    int tcp_header_len = ((buf[ip_header_len + 12] >> 4) & 0x0F) * 4;
+
+    // Calculate HTTP start address
+    unsigned char* http_start = buf + ip_header_len + tcp_header_len;
+
+    return http_start;
+}
+
+bool isHttp(unsigned char* buf, int size) {
+    unsigned char* http_start = get_http_start_address(buf);
+
+    if (http_start - buf >= size) {
+        return false;
+    }
+
+    const char* methods[] = {
+        "GET", "POST", "PUT", "DELETE", "HEAD", "OPTIONS", "PATCH", "CONNECT"
+    };
+    for (int i = 0; i < sizeof(methods) / sizeof(methods[0]); i++) {
+        if (strncmp((char*)http_start, methods[i], strlen(methods[i])) == 0) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+void dump(unsigned char* buf, int size) {
+
+	unsigned char* http_start=get_http_start_address(buf);
+
+	int method_pass=0;
+	int start_idx;
+	for(int i=0;i<strlen((char*)http_start);i++){
+		if(http_start[i]==0x0d && http_start[i+1]==0x0a){
+			start_idx=i+2;
+			break;
+		}
+	}
+	
+	http_start= http_start + start_idx + 6; //host index pass
+
+	unsigned char host_str[12];
+	memset(host_str, 0, sizeof(host_str));  // Initialize it to zeros
+	for(int i=0;i<strlen((char*)http_start);i++){
+		if(http_start[i]==0x0d && http_start[i+1]==0x0a){
+			break;
+		}
+		host_str[i]=http_start[i];
+	}
+
+    printf("net is %s\n\n", host_str);
+}
+
+
 static u_int32_t print_pkt (struct nfq_data *tb)
 {
 	int id = 0;
@@ -57,13 +120,19 @@ static u_int32_t print_pkt (struct nfq_data *tb)
 	ret = nfq_get_payload(tb, &data);
 	if (ret >= 0)
 		printf("payload_len=%d\n", ret);
-
+	
+	if(isHttp(data,ret)){
+    	dump(data,ret);
+	}
 	fputc('\n', stdout);
 
 	return id;
 }
 
 
+
+// 인자를 통해 ping을 보내고, output을 내고, input을 받을 때,
+// 인자의 domain name과 다를 경우 host값 검증 
 static int cb(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg,
 	      struct nfq_data *nfa, void *data)
 {
@@ -71,6 +140,7 @@ static int cb(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg,
 	printf("entering callback\n");
 	return nfq_set_verdict(qh, id, NF_ACCEPT, 0, NULL);
 }
+
 
 int main(int argc, char **argv)
 {
